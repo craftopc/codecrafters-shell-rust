@@ -1,7 +1,8 @@
+use std::fs::File;
 #[allow(unused_imports)]
 use std::io::{self, Write};
 use std::os::unix::fs::PermissionsExt;
-use std::process::exit;
+use std::process::{Command, Stdio, exit};
 
 struct Cmd {
     command: String,
@@ -88,6 +89,8 @@ fn find_in_path(cmd: &str) -> Option<std::path::PathBuf> {
 }
 
 fn execute_pipeline(pipeline_obj: Pipeline) -> i32 {
+    let mut last_status = 0;
+
     for cmd in pipeline_obj.pipeline {
         match Builtin::from_str(cmd.command.as_str()) {
             Some(builtin) => match builtin {
@@ -122,12 +125,38 @@ fn execute_pipeline(pipeline_obj: Pipeline) -> i32 {
                 }
             },
             None => {
-                println!("{}: command not found", cmd.command);
+                let mut child_cmd = Command::new(&cmd.command);
+                child_cmd.args(&cmd.parameter);
+
+                if !cmd.input_source.is_empty() {
+                    let file = File::open(&cmd.input_source).expect("error");
+                    child_cmd.stdin(Stdio::from(file));
+                } else {
+                    child_cmd.stdin(Stdio::inherit());
+                }
+
+                if !cmd.out_source.is_empty() {
+                    let file = File::create(&cmd.out_source).expect("error");
+                    child_cmd.stdout(Stdio::from(file));
+                } else {
+                    child_cmd.stdout(Stdio::inherit());
+                }
+
+                child_cmd.stderr(Stdio::inherit());
+
+                match child_cmd.status() {
+                    Ok(status) => {
+                        last_status = status.code().unwrap_or(0);
+                    }
+                    Err(_) => {
+                        eprintln!("{}: command not found", cmd.command);
+                        last_status = 127;
+                    }
+                }
             }
         }
     }
-
-    0
+    last_status
 }
 
 /// Processes a token.
