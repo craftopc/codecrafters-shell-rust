@@ -1,6 +1,6 @@
 #[allow(unused_imports)]
 use std::io::{self, Write};
-use std::process::{exit};
+use std::process::exit;
 
 struct Cmd {
     command: String,
@@ -17,6 +17,23 @@ enum LogicExpr {
     Base(Pipeline),
     And(Box<LogicExpr>, Box<LogicExpr>),
     // Or(Box<LogicExpr>, Box<LogicExpr>),
+}
+
+enum Builtin {
+    Exit,
+    Echo,
+    Type,
+}
+
+impl Builtin {
+    fn from_str(s: &str) -> Option<Builtin> {
+        match s {
+            "exit" => Some(Builtin::Exit),
+            "echo" => Some(Builtin::Echo),
+            "type" => Some(Builtin::Type),
+            _ => None,
+        }
+    }
 }
 
 fn main() {
@@ -50,29 +67,38 @@ fn execute_logic(expr: LogicExpr) -> i32 {
             } else {
                 status
             }
-        }
-        // LogicExpr::Or(left, right) => todo!(),
+        } // LogicExpr::Or(left, right) => todo!(),
     }
 }
 
 fn execute_pipeline(pipeline_obj: Pipeline) -> i32 {
     for cmd in pipeline_obj.pipeline {
-        match cmd.command.as_str() {
-            "" => {}
-            "exit" => {
-                println!("exit");
-                exit(0);
-            }
-            "echo" => {
-                for (i, parameter) in cmd.parameter.iter().enumerate() {
-                    if i > 0 {
-                        print!(" ");
-                    }
-                    print!("{}", parameter);
+        match Builtin::from_str(cmd.command.as_str()) {
+            Some(builtin) => match builtin {
+                Builtin::Exit => {
+                    println!("exit");
+                    exit(0);
                 }
-                println!();
-            }
-            _ => {
+                Builtin::Echo => {
+                    for (i, parameter) in cmd.parameter.iter().enumerate() {
+                        if i > 0 {
+                            print!(" ");
+                        }
+                        print!("{}", parameter);
+                    }
+                    println!();
+                }
+                Builtin::Type => {
+                    let arg = &cmd.parameter[0];
+
+                    if Builtin::from_str(arg).is_some() {
+                        println!("{} is a shell builtin", arg);
+                    } else {
+                        println!("{}: not found", arg);
+                    }
+                }
+            },
+            None => {
                 println!("{}: command not found", cmd.command);
             }
         }
