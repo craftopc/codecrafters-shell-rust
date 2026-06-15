@@ -1,5 +1,6 @@
 #[allow(unused_imports)]
 use std::io::{self, Write};
+use std::os::unix::fs::PermissionsExt;
 use std::process::exit;
 
 struct Cmd {
@@ -49,7 +50,7 @@ fn main() {
             }
             Ok(_) => {
                 let input = input.trim();
-                let tree = paraser(&tokenize(input));
+                let tree = parser(&tokenize(input));
                 execute_logic(tree);
             }
             Err(e) => println!("shell: read error: {}", e),
@@ -71,6 +72,21 @@ fn execute_logic(expr: LogicExpr) -> i32 {
     }
 }
 
+fn find_in_path(cmd: &str) -> Option<std::path::PathBuf> {
+    let env_path = std::env::var("PATH").ok()?;
+
+    std::env::split_paths(&env_path).find_map(|dir| {
+        let full_path = dir.join(cmd);
+
+        if let Ok(metedata) = full_path.metadata() {
+            if metedata.is_file() && (metedata.permissions().mode() & 0o111 != 0) {
+                return Some(full_path);
+            }
+        }
+        None
+    })
+}
+
 fn execute_pipeline(pipeline_obj: Pipeline) -> i32 {
     for cmd in pipeline_obj.pipeline {
         match Builtin::from_str(cmd.command.as_str()) {
@@ -89,10 +105,17 @@ fn execute_pipeline(pipeline_obj: Pipeline) -> i32 {
                     println!();
                 }
                 Builtin::Type => {
-                    let arg = &cmd.parameter[0];
+                    let arg: &String;
+                    if cmd.parameter.len() > 0 {
+                        arg = &cmd.parameter[0];
+                    } else {
+                        return 1;
+                    }
 
                     if Builtin::from_str(arg).is_some() {
                         println!("{} is a shell builtin", arg);
+                    } else if let Some(full_path) = find_in_path(arg) {
+                        println!("{} is {}", arg, full_path.display());
                     } else {
                         println!("{}: not found", arg);
                     }
@@ -176,13 +199,13 @@ fn parse_to_pipeline(tokens: &[String]) -> Pipeline {
     pipeline_obj
 }
 
-fn paraser(tokens: &[String]) -> LogicExpr {
+fn parser(tokens: &[String]) -> LogicExpr {
     if let Some(pos) = tokens.iter().rposition(|x| x == "&&") {
         let left = &tokens[..pos];
         let right = &tokens[pos + 1..];
 
-        let left_expr = paraser(left);
-        let right_expr = paraser(right);
+        let left_expr = parser(left);
+        let right_expr = parser(right);
 
         LogicExpr::And(Box::new(left_expr), Box::new(right_expr))
     } else {
