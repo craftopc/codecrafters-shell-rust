@@ -3,6 +3,7 @@ use std::fs::File;
 #[allow(unused_imports)]
 use std::io::{self, Write};
 use std::os::unix::fs::PermissionsExt;
+use std::path::PathBuf;
 use std::process::{Command, Stdio, exit};
 
 struct Cmd {
@@ -128,18 +129,24 @@ fn execute_pipeline(pipeline_obj: Pipeline) -> i32 {
                         println!("{}: not found", arg);
                     }
                 }
-                Builtin::PWD => {
-                    match env::current_dir() {
-                        Ok(s) => println!("{}", s.display()),
-                        Err(_) => last_status = 1,
-                    }
-                }
+                Builtin::PWD => match env::current_dir() {
+                    Ok(s) => println!("{}", s.display()),
+                    Err(_) => last_status = 1,
+                },
                 Builtin::CD => {
-                    let arg = &cmd.parameter[0];
-                        match env::set_current_dir(arg) {
-                            Ok(_) => {},
-                            Err(_) => eprintln!("cd: {}: No such file or directory", arg),
-                        }
+                    let home = env::var("HOME").unwrap_or_else(|_| String::new());
+                    let target = cmd.parameter.first().map(|s| s.as_str()).unwrap_or(&home);
+                    let final_path = if target.starts_with('~') {
+                        let mut path = PathBuf::from(&home);
+                        path.push(&target[1..].trim_start_matches('/'));
+                        path
+                    } else {
+                        PathBuf::from(target)
+                    };
+
+                    if let Err(_) = env::set_current_dir(&final_path) {
+                        eprintln!("cd: {}: No such file or directory", target);
+                    }
                 }
             },
             None => {
