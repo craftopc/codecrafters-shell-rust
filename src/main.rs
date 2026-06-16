@@ -1,3 +1,4 @@
+use std::env;
 use std::fs::File;
 #[allow(unused_imports)]
 use std::io::{self, Write};
@@ -25,6 +26,7 @@ enum Builtin {
     Exit,
     Echo,
     Type,
+    PWD,
 }
 
 impl Builtin {
@@ -33,6 +35,7 @@ impl Builtin {
             "exit" => Some(Builtin::Exit),
             "echo" => Some(Builtin::Echo),
             "type" => Some(Builtin::Type),
+            "pwd" => Some(Builtin::PWD),
             _ => None,
         }
     }
@@ -121,6 +124,12 @@ fn execute_pipeline(pipeline_obj: Pipeline) -> i32 {
                         println!("{} is {}", arg, full_path.display());
                     } else {
                         println!("{}: not found", arg);
+                    }
+                }
+                Builtin::PWD => {
+                    match env::current_dir() {
+                        Ok(s) => println!("{}", s.display()),
+                        Err(_) => last_status = 1,
                     }
                 }
             },
