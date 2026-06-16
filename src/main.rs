@@ -136,12 +136,10 @@ fn execute_pipeline(pipeline_obj: Pipeline) -> i32 {
                 }
                 Builtin::CD => {
                     let arg = &cmd.parameter[0];
-                    if arg.starts_with('/') {
                         match env::set_current_dir(arg) {
                             Ok(_) => {},
                             Err(_) => eprintln!("cd: {}: No such file or directory", arg),
                         }
-                    }
                 }
             },
             None => {
