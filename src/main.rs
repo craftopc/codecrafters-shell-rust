@@ -27,6 +27,7 @@ enum Builtin {
     Echo,
     Type,
     PWD,
+    CD,
 }
 
 impl Builtin {
@@ -36,6 +37,7 @@ impl Builtin {
             "echo" => Some(Builtin::Echo),
             "type" => Some(Builtin::Type),
             "pwd" => Some(Builtin::PWD),
+            "cd" => Some(Builtin::CD),
             _ => None,
         }
     }
@@ -130,6 +132,15 @@ fn execute_pipeline(pipeline_obj: Pipeline) -> i32 {
                     match env::current_dir() {
                         Ok(s) => println!("{}", s.display()),
                         Err(_) => last_status = 1,
+                    }
+                }
+                Builtin::CD => {
+                    let arg = &cmd.parameter[0];
+                    if arg.starts_with('/') {
+                        match env::set_current_dir(arg) {
+                            Ok(_) => {},
+                            Err(_) => eprintln!("cd: {}: No such file or directory", arg),
+                        }
                     }
                 }
             },
