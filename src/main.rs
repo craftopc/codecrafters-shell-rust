@@ -27,8 +27,13 @@ enum Builtin {
     Exit,
     Echo,
     Type,
-    PWD,
-    CD,
+    Pwd,
+    Cd,
+}
+
+enum State {
+    Normal,
+    InSingleQuote,
 }
 
 impl Builtin {
@@ -37,8 +42,8 @@ impl Builtin {
             "exit" => Some(Builtin::Exit),
             "echo" => Some(Builtin::Echo),
             "type" => Some(Builtin::Type),
-            "pwd" => Some(Builtin::PWD),
-            "cd" => Some(Builtin::CD),
+            "pwd" => Some(Builtin::Pwd),
+            "cd" => Some(Builtin::Cd),
             _ => None,
         }
     }
@@ -59,6 +64,7 @@ fn main() {
                 let input = input.trim();
                 let tree = parser(&tokenize(input));
                 execute_logic(tree);
+                // println!("{:?}", tokenize(input));
             }
             Err(e) => println!("shell: read error: {}", e),
         }
@@ -129,11 +135,11 @@ fn execute_pipeline(pipeline_obj: Pipeline) -> i32 {
                         println!("{}: not found", arg);
                     }
                 }
-                Builtin::PWD => match env::current_dir() {
+                Builtin::Pwd => match env::current_dir() {
                     Ok(s) => println!("{}", s.display()),
                     Err(_) => last_status = 1,
                 },
-                Builtin::CD => {
+                Builtin::Cd => {
                     let home = env::var("HOME").unwrap_or_else(|_| String::new());
                     let target = cmd.parameter.first().map(|s| s.as_str()).unwrap_or(&home);
                     let final_path = if target.starts_with('~') {
@@ -189,20 +195,29 @@ fn execute_pipeline(pipeline_obj: Pipeline) -> i32 {
 /// **NOTE:** `token` must be trimmed before passing in.
 fn tokenize(input: &str) -> Vec<String> {
     let mut tokens: Vec<String> = Vec::new();
-    let rest = input.as_bytes();
-    let mut pos = 0;
+    let mut current_token = String::new();
+    let mut state = State::Normal;
 
-    while pos < rest.len() {
-        if rest[pos] == b' ' || rest[pos] == b'\t' {
-            pos += 1;
-            continue;
+    for c in input.chars() {
+        match state {
+            State::Normal => match c {
+                '\'' => state = State::InSingleQuote,
+                ' ' | '\t' => {
+                    if !current_token.is_empty() {
+                        tokens.push(current_token);
+                        current_token = String::new();
+                    }
+                }
+                _ => current_token.push(c),
+            },
+            State::InSingleQuote => match c {
+                '\'' => state = State::Normal,
+                _ => current_token.push(c),
+            },
         }
-
-        let start = pos;
-        while pos < rest.len() && rest[pos] != b' ' && rest[pos] != b'\t' {
-            pos += 1;
-        }
-        tokens.push(input[start..pos].to_string());
+    }
+    if !current_token.is_empty() {
+        tokens.push(current_token);
     }
 
     tokens
