@@ -35,6 +35,7 @@ enum State {
     Normal,
     InSingleQuote,
     InDoubleQuote,
+    Escaping,
 }
 
 impl Builtin {
@@ -204,6 +205,7 @@ fn tokenize(input: &str) -> Vec<String> {
             State::Normal => match c {
                 '\'' => state = State::InSingleQuote,
                 '\"' => state = State::InDoubleQuote,
+                '\\' => state = State::Escaping,
                 ' ' | '\t' => {
                     if !current_token.is_empty() {
                         tokens.push(current_token);
@@ -219,7 +221,13 @@ fn tokenize(input: &str) -> Vec<String> {
             State::InDoubleQuote => match c {
                 '\"' => state = State::Normal,
                 _ => current_token.push(c),
-            }
+            },
+            State::Escaping => match c {
+                _ => {
+                    state = State::Normal;
+                    current_token.push(c);
+                }
+            },
         }
     }
     if !current_token.is_empty() {
